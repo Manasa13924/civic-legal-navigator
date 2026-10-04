@@ -47,12 +47,13 @@ def _retry(fn, tries=6):
 
 # ---------- Model helper: automatic fallback ----------
 # If the main model is busy (503), out of quota (429) or unknown (404), try these next.
-FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-2.5-flash-lite"]
+FALLBACK_MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite"]
 
 
 def _generate(client, **kwargs):
     """generate_content that automatically falls back to other models."""
     last_error = None
+    failures = []
     for model in [LLM_MODEL] + [m for m in FALLBACK_MODELS if m != LLM_MODEL]:
         try:
             response = _retry(
@@ -68,9 +69,10 @@ def _generate(client, **kwargs):
                                     "404", "NOT_FOUND")
             )
             print(f"RAG: model {model} failed, trying next. ({text[:90]})")
+            failures.append(f"{model}: {text[:110]}")
             if not can_skip:
                 raise
-    raise last_error
+    raise RuntimeError("All models failed. " + " | ".join(failures)) from last_error
 
 
 # ---------- 1. LOAD: text per page (local OCR for scanned PDFs) ----------
